@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AECOM SH&E — Supervisor Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700;900&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--bg:#0f172a;--bg2:#1e293b;--card:#1e293b;--accent:#e94560;--accent2:#f5a623;--success:#22c55e;--danger:#ef4444;--text:#f1f5f9;--text-muted:#94a3b8;--border:rgba(255,255,255,0.08);--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+/* Login */
+.login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999}
+.login-card{background:var(--bg2);padding:40px 36px;border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,0.5);max-width:400px;width:90%;text-align:center;border:1px solid var(--border)}
+.login-card h2{font-family:'Oswald',sans-serif;font-size:1.4rem;letter-spacing:2px;margin-bottom:4px;text-transform:uppercase}
+.login-card .sub{color:var(--text-muted);font-size:0.85rem;margin-bottom:24px}
+.login-card input{width:100%;padding:14px 16px;background:rgba(255,255,255,0.06);border:2px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;font-family:inherit;outline:none;margin-bottom:12px;transition:border-color 0.3s}
+.login-card input:focus{border-color:var(--accent)}
+.login-card button{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.3s}
+.login-card button:hover{background:#c0392b}
+.login-error{color:var(--danger);font-size:0.85rem;margin-bottom:12px;display:none}
+/* Header */
+.dash-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.dash-header h1{font-family:'Oswald',sans-serif;font-size:1.3rem;letter-spacing:1px}
+.dash-header h1 span{color:var(--accent)}
+.dash-header .logout-btn{padding:8px 20px;background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:50px;cursor:pointer;font-size:0.85rem;font-family:inherit;transition:all 0.3s}
+.dash-header .logout-btn:hover{border-color:var(--danger);color:var(--danger)}
+.container{max-width:1200px;margin:0 auto;padding:24px 20px}
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center}
+.stat-value{font-size:2rem;font-weight:900;line-height:1.2}
+.stat-value.green{color:var(--success)}.stat-value.red{color:var(--danger)}.stat-value.gold{color:var(--accent2)}.stat-value.blue{color:#3b82f6}
+.stat-label{font-size:0.8rem;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+/* Controls */
+.controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.controls input,.controls select{padding:10px 14px;background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.9rem;font-family:inherit;outline:none}
+.controls input:focus,.controls select:focus{border-color:var(--accent)}
+.controls select{cursor:pointer}
+.controls input[type="date"]{color-scheme:dark}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all 0.2s;display:inline-flex;align-items:center;gap:6px}
+.btn-csv{background:#22c55e;color:#fff}.btn-csv:hover{background:#16a34a}
+.btn-pdf{background:#ef4444;color:#fff}.btn-pdf:hover{background:#dc2626}
+.btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger);padding:6px 12px;font-size:0.78rem;border-radius:6px}
+.btn-danger:hover{background:var(--danger);color:#fff}
+/* Table */
+.table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+table{width:100%;border-collapse:collapse;font-size:0.9rem}
+thead{background:rgba(255,255,255,0.04)}
+th{padding:14px 16px;text-align:start;font-weight:600;color:var(--text-muted);font-size:0.78rem;text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+td{padding:12px 16px;border-top:1px solid var(--border);white-space:nowrap}
+.badge{display:inline-block;padding:3px 12px;border-radius:50px;font-size:0.78rem;font-weight:700}
+.badge-pass{background:rgba(34,197,94,0.15);color:var(--success)}
+.badge-fail{background:rgba(239,68,68,0.15);color:var(--danger)}
+tr:hover{background:rgba(255,255,255,0.02)}
+.empty-msg{text-align:center;padding:40px;color:var(--text-muted)}
+/* Top Performers */
+.top-section{margin-top:28px}
+.top-section h3{font-size:1rem;margin-bottom:12px;color:var(--accent2)}
+.top-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.top-item{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;align-items:center;gap:14px}
+.top-rank{width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.9rem;flex-shrink:0}
+.top-rank.gold{background:var(--accent2);color:#1a1a2e}
+.top-rank.silver{background:#94a3b8;color:#1a1a2e}
+.top-rank.bronze{background:#cd7f32;color:#fff}
+.top-name{font-weight:600;font-size:0.9rem}.top-score{font-size:0.8rem;color:var(--text-muted)}
+.loading{text-align:center;padding:60px;color:var(--text-muted);font-size:1rem}
+@media(max-width:600px){.stats-row{grid-template-columns:repeat(2,1fr)}.controls{flex-direction:column}.controls input,.controls select{width:100%}th,td{padding:10px 12px;font-size:0.82rem}}
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div style="font-size:48px;margin-bottom:12px">🔒</div>
+    <h2>AECOM Arabia</h2>
+    <div class="sub">SH&E Supervisor Dashboard</div>
+    <div class="login-error" id="loginError">Incorrect password. Please try again.</div>
+    <input type="password" id="loginPass" placeholder="Enter supervisor password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Access Dashboard</button>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" style="display:none;">
+  <div class="dash-header">
+    <h1>AECOM <span>SH&E</span> — Supervisor Dashboard</h1>
+    <button class="logout-btn" onclick="doLogout()">🔒 Logout</button>
+  </div>
+  <div class="container">
+
+    <!-- Live Stats -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="stat-value blue" id="statTotal">—</div><div class="stat-label">Total Attempts</div></div>
+      <div class="stat-card"><div class="stat-value green" id="statPassed">—</div><div class="stat-label">Passed</div></div>
+      <div class="stat-card"><div class="stat-value red" id="statFailed">—</div><div class="stat-label">Failed</div></div>
+      <div class="stat-card"><div class="stat-value gold" id="statPassRate">—</div><div class="stat-label">Pass Rate</div></div>
+      <div class="stat-card"><div class="stat-value blue" id="statToday">—</div><div class="stat-label">Today</div></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <input type="text" id="searchInput" placeholder="🔍 Search by name or Iqama ID..." oninput="applyFilters()" style="flex:1;min-width:200px">
+      <select id="filterStatus" onchange="applyFilters()">
+        <option value="all">All Status</option>
+        <option value="pass">Passed Only</option>
+        <option value="fail">Failed Only</option>
+      </select>
+      <select id="filterQuiz" onchange="applyFilters()">
+        <option value="all">All Quizzes</option>
+        <option value="Lifting Operations Safety">Lifting Operations</option>
+        <option value="Work at Height Safety">Work at Height</option>
+      </select>
+      <input type="date" id="filterDateFrom" onchange="applyFilters()" title="From date">
+      <input type="date" id="filterDateTo" onchange="applyFilters()" title="To date">
+      <button class="btn btn-csv" onclick="exportCSV()">📊 Export CSV</button>
+      <button class="btn btn-pdf" onclick="exportPDF()">📄 Export PDF</button>
+    </div>
+
+    <!-- Records Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Name</th><th>Iqama ID</th><th>Company</th><th>Quiz</th><th>Score</th><th>%</th><th>Status</th><th>Date</th><th>Action</th></tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="10" class="loading">Loading records...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Top Performers -->
+    <div class="top-section">
+      <h3>🏆 Top Performers</h3>
+      <div class="top-list" id="topList"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const DASH_PASSWORD = 'AECOM@Safety2026';
+
+// Firebase init
+const firebaseConfig = {
+  apiKey: "AIzaSyBA4WjbJI8sS6YtLhOTKUmQDUQ6j_il-8E",
+  authDomain: "safetyquiz-72bc8.firebaseapp.com",
+  projectId: "safetyquiz-72bc8",
+  storageBucket: "safetyquiz-72bc8.firebasestorage.app",
+  messagingSenderId: "288987086052",
+  appId: "1:288987086052:web:a3da9efc1cacb7784ec0f1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let allRecords = [];
+let filteredRecords = [];
+
+// Login
+function doLogin() {
+  const pass = document.getElementById('loginPass').value;
+  if (pass === DASH_PASSWORD) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    loadRecords();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginPass').focus();
+  }
+}
+
+function doLogout() {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+// Load records from Firestore
+async function loadRecords() {
+  try {
+    const snapshot = await db.collection('quiz_results').orderBy('date', 'desc').get();
+    allRecords = [];
+    snapshot.forEach(doc => {
+      allRecords.push({ id: doc.id, ...doc.data() });
+    });
+    applyFilters();
+    updateStats();
+    updateTopPerformers();
+  } catch (e) {
+    console.error('Load error:', e);
+    document.getElementById('tableBody').innerHTML = '<tr><td colspan="10" class="empty-msg">Error loading records. Check Firebase configuration.</td></tr>';
+  }
+}
+
+// Stats
+function updateStats() {
+  const total = allRecords.length;
+  const passed = allRecords.filter(r => r.passed).length;
+  const failed = total - passed;
+  const rate = total > 0 ? Math.round((passed / total) * 100) : 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCount = allRecords.filter(r => r.date && r.date.slice(0, 10) === today).length;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statPassed').textContent = passed;
+  document.getElementById('statFailed').textContent = failed;
+  document.getElementById('statPassRate').textContent = rate + '%';
+  document.getElementById('statToday').textContent = todayCount;
+}
+
+// Filters
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.toLowerCase().trim();
+  const status = document.getElementById('filterStatus').value;
+  const quizType = document.getElementById('filterQuiz').value;
+  const dateFrom = document.getElementById('filterDateFrom').value;
+  const dateTo = document.getElementById('filterDateTo').value;
+
+  filteredRecords = allRecords.filter(r => {
+    if (search && !(r.name || '').toLowerCase().includes(search) && !(r.iqama || '').includes(search)) return false;
+    if (status === 'pass' && !r.passed) return false;
+    if (status === 'fail' && r.passed) return false;
+    if (quizType !== 'all' && (r.quizType || '') !== quizType) return false;
+    if (dateFrom && r.date && r.date.slice(0, 10) < dateFrom) return false;
+    if (dateTo && r.date && r.date.slice(0, 10) > dateTo) return false;
+    return true;
+  });
+
+  renderTable();
+}
+
+// Table
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  if (filteredRecords.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-msg">No records found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filteredRecords.map((r, i) => {
+    const dateStr = r.date ? new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    const quizShort = (r.quizType || '—').replace(' Safety', '');
+    return `<tr>
+      <td>${i + 1}</td>
+      <td><strong>${r.name || '—'}</strong></td>
+      <td>${r.iqama || '—'}</td>
+      <td>${r.company || '—'}</td>
+      <td>${quizShort}</td>
+      <td>${r.score || 0}/${r.total || 10}</td>
+      <td>${r.percentage || 0}%</td>
+      <td><span class="badge ${r.passed ? 'badge-pass' : 'badge-fail'}">${r.passed ? 'PASS' : 'FAIL'}</span></td>
+      <td>${dateStr}</td>
+      <td><button class="btn btn-danger" onclick="deleteRecord('${r.id}')">🗑️ Delete</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// Top Performers
+function updateTopPerformers() {
+  const passedRecords = allRecords.filter(r => r.passed).sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+  const top5 = passedRecords.slice(0, 5);
+  const container = document.getElementById('topList');
+
+  if (top5.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;">No passed records yet.</div>';
+    return;
+  }
+
+  const rankClasses = ['gold', 'silver', 'bronze', '', ''];
+  container.innerHTML = top5.map((r, i) => `
+    <div class="top-item">
+      <div class="top-rank ${rankClasses[i]}">${i + 1}</div>
+      <div>
+        <div class="top-name">${r.name || '—'}</div>
+        <div class="top-score">${r.company || ''} — ${r.percentage || 0}% (${r.score}/${r.total})</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Delete record
+async function deleteRecord(id) {
+  if (!confirm('Are you sure you want to delete this record?')) return;
+  try {
+    await db.collection('quiz_results').doc(id).delete();
+    allRecords = allRecords.filter(r => r.id !== id);
+    applyFilters();
+    updateStats();
+    updateTopPerformers();
+  } catch (e) {
+    alert('Error deleting record: ' + e.message);
+  }
+}
+
+// Export CSV
+function exportCSV() {
+  if (filteredRecords.length === 0) { alert('No records to export.'); return; }
+  const headers = ['Name', 'Iqama ID', 'Company', 'Score', 'Total', 'Percentage', 'Status', 'Quiz Type', 'Language', 'Date'];
+  const rows = filteredRecords.map(r => [
+    '"' + (r.name || '') + '"',
+    r.iqama || '',
+    '"' + (r.company || '') + '"',
+    r.score || 0,
+    r.total || 10,
+    (r.percentage || 0) + '%',
+    r.passed ? 'PASS' : 'FAIL',
+    r.quizType || '',
+    r.language || '',
+    r.date ? new Date(r.date).toLocaleDateString('en-GB') : ''
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'AECOM_Quiz_Results_' + new Date().toISOString().slice(0, 10) + '.csv';
+  link.click();
+}
+
+// Export PDF
+function exportPDF() {
+  if (filteredRecords.length === 0) { alert('No records to export.'); return; }
+  const win = window.open('', '_blank');
+  const rows = filteredRecords.map((r, i) => {
+    const dateStr = r.date ? new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    return `<tr>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center">${i + 1}</td>
+      <td style="padding:8px;border:1px solid #ddd">${r.name || ''}</td>
+      <td style="padding:8px;border:1px solid #ddd">${r.iqama || ''}</td>
+      <td style="padding:8px;border:1px solid #ddd">${r.company || ''}</td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center">${r.score || 0}/${r.total || 10}</td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center">${r.percentage || 0}%</td>
+      <td style="padding:8px;border:1px solid #ddd;text-align:center;color:${r.passed ? 'green' : 'red'};font-weight:bold">${r.passed ? 'PASS' : 'FAIL'}</td>
+      <td style="padding:8px;border:1px solid #ddd">${dateStr}</td>
+    </tr>`;
+  }).join('');
+
+  const total = filteredRecords.length;
+  const passed = filteredRecords.filter(r => r.passed).length;
+
+  win.document.write(`<!DOCTYPE html><html><head><title>AECOM Quiz Results</title></head><body style="font-family:Arial,sans-serif;padding:30px;color:#333">
+    <div style="text-align:center;margin-bottom:24px">
+      <h1 style="color:#c0392b;margin:0;font-size:1.6rem">AECOM Arabia — SH&E</h1>
+      <h2 style="margin:4px 0;font-size:1.1rem;color:#555">Safety Quiz Results Report</h2>
+      <p style="color:#888;font-size:0.85rem">Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} | Total: ${total} | Passed: ${passed} | Failed: ${total - passed} | Pass Rate: ${total > 0 ? Math.round(passed / total * 100) : 0}%</p>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+      <thead><tr style="background:#c0392b;color:#fff">
+        <th style="padding:10px;border:1px solid #ddd">#</th><th style="padding:10px;border:1px solid #ddd">Name</th><th style="padding:10px;border:1px solid #ddd">Iqama ID</th><th style="padding:10px;border:1px solid #ddd">Company</th><th style="padding:10px;border:1px solid #ddd">Score</th><th style="padding:10px;border:1px solid #ddd">%</th><th style="padding:10px;border:1px solid #ddd">Status</th><th style="padding:10px;border:1px solid #ddd">Date</th>
+      </tr></thead><tbody>${rows}</tbody>
+    </table>
+    <div style="text-align:center;margin-top:20px;color:#888;font-size:0.8rem">AECOM Arabia — Safety, Health & Environment</div>
+    <script>setTimeout(()=>window.print(),500)<\/script>
+  </body></html>`);
+  win.document.close();
+}
+</script>
+</body>
+</html>
